@@ -44,13 +44,14 @@ type Model struct {
 	theme                                          string
 	inputs                                         []string
 	focused                                        bool
+	noSixel                                       bool
 	viewCache                                      string
 }
 
-func NewModel(player *MPV, files []string, sortMode string, inputs []string) *Model {
+func NewModel(player *MPV, files []string, sortMode string, inputs []string, noSixel bool) *Model {
 	baseDir, _ := os.Getwd()
 	baseDir = playlistRoot(files, baseDir)
-	m := &Model{player: player, files: files, inputs: append([]string(nil), inputs...), playing: -1, events: make(chan mpvMessage, 32), status: "Ready", sortMode: sortMode, repeatMode: "all", asciiCover: -1, baseDir: baseDir, theme: "mocha", focused: true}
+	m := &Model{player: player, files: files, inputs: append([]string(nil), inputs...), playing: -1, events: make(chan mpvMessage, 32), status: "Ready", sortMode: sortMode, repeatMode: "all", asciiCover: -1, baseDir: baseDir, theme: "mocha", focused: true, noSixel: noSixel}
 	m.sortFiles(false)
 	player.ReadEvents(m.events)
 	if err := player.Observe(); err != nil {
@@ -627,7 +628,7 @@ func (m *Model) renderView() string {
 	}
 	rows := []string{boxTop(strings.ToUpper(m.displayStatus()))}
 	showCover := screenWidth >= coverMinWidth && h >= coverMinHeight
-	hasImage := showCover && m.cover != "" && os.Getenv("MPVX_NO_SIXEL") != "1"
+	hasImage := showCover && m.cover != "" && !m.noSixel
 	detailWidth := contentWidth
 	if showCover {
 		detailWidth = w - coverDetailInset

@@ -13,6 +13,7 @@ import (
 func main() {
 	flags := flag.NewFlagSet("mpvx", flag.ContinueOnError)
 	sortMode := flags.String("sort", "random", "playlist order: random, name, or path")
+	noSixel := flags.Bool("no-sixel", false, "disable SIXEL cover art")
 	flags.SetOutput(os.Stderr)
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		os.Exit(2)
@@ -27,7 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 	if len(files) == 0 {
-		fmt.Println("usage: mpvx [--sort random|name|path] <audio-file-or-folder> [...]")
+		fmt.Println("usage: mpvx [--sort random|name|path] [--no-sixel] <audio-file-or-folder> [...]")
 		return
 	}
 
@@ -47,7 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := NewModel(player, files, *sortMode, flags.Args())
+	p := NewModel(player, files, *sortMode, flags.Args(), *noSixel)
 	if _, err := tea.NewProgram(p, tea.WithAltScreen(), tea.WithReportFocus()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
