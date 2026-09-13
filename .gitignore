@@ -1,0 +1,15 @@
+# Build outputs
+/mpvx
+/mpvx.exe
+*.test
+*.out
+
+# Dependencies
+/vendor/
+
+# Editors and operating systems
+/.idea/
+/.vscode/
+*.swp
+.DS_Store
+Thumbs.db
