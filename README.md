@@ -36,9 +36,9 @@ mpvx.exe --no-sixel .\music
 | / | Search |
 | n/N | Next/previous match |
 | s | Cycle sort mode |
-| t | Cycle theme |
 | r | Toggle playlist/track repeat |
 | Esc | Clear errors |
 | q, Ctrl+C | Quit |
 
-Themes: Catppuccin Mocha (default), Gruvbox, Nord, and One Dark. 
+The theme is derived automatically from cover art. Tracks without a cover use
+one of the built-in Catppuccin Mocha, Gruvbox, or Nord themes at random.

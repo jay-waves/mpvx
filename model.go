@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -41,7 +42,7 @@ type Model struct {
 	searchStart                                    int
 	searchFound                                    bool
 	baseDir                                        string
-	theme                                          string
+	theme                                          themeColors
 	inputs                                         []string
 	focused                                        bool
 	noSixel                                       bool
@@ -51,7 +52,7 @@ type Model struct {
 func NewModel(player *MPV, files []string, sortMode string, inputs []string, noSixel bool) *Model {
 	baseDir, _ := os.Getwd()
 	baseDir = playlistRoot(files, baseDir)
-	m := &Model{player: player, files: files, inputs: append([]string(nil), inputs...), playing: -1, events: make(chan mpvMessage, 32), status: "Ready", sortMode: sortMode, repeatMode: "all", asciiCover: -1, baseDir: baseDir, theme: "mocha", focused: true, noSixel: noSixel}
+	m := &Model{player: player, files: files, inputs: append([]string(nil), inputs...), playing: -1, events: make(chan mpvMessage, 32), status: "Ready", sortMode: sortMode, repeatMode: "all", asciiCover: -1, baseDir: baseDir, theme: randomTheme(""), focused: true, noSixel: noSixel}
 	m.sortFiles(false)
 	player.ReadEvents(m.events)
 	if err := player.Observe(); err != nil {
@@ -146,7 +147,7 @@ func (m *Model) refreshFiles() {
 	if m.playing < 0 && len(m.files) > 0 {
 		m.play(0)
 	} else if m.playing >= 0 {
-		m.loadMetadata()
+		m.loadMetadata(false)
 	}
 	m.ensureVisible()
 	m.showMessage(fmt.Sprintf("Playlist refreshed · %d tracks", len(m.files)))
@@ -160,15 +161,18 @@ func (m *Model) play(index int) {
 		m.fail(err)
 		return
 	}
-	if index != m.playing {
+	trackChanged := index != m.playing
+	if trackChanged {
 		m.chooseASCIICover()
 	}
 	m.playing = index
+	m.selected = index
 	m.position, m.duration = 0, 0
 	m.status = "Loading"
 	m.clearError()
-	m.loadMetadata()
-	m.command("set", "pause", false)
+	m.loadMetadata(trackChanged)
+	m.ensureVisible()
+	m.command("set", "pause", "no")
 }
 
 func (m *Model) chooseASCIICover() {
@@ -270,8 +274,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "s":
 			m.cycleSortMode()
-		case "t":
-			m.cycleTheme()
 		case "r":
 			m.cycleRepeatMode()
 		case "+", "=":
@@ -288,17 +290,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
-}
-
-func (m *Model) cycleTheme() {
-	for i, theme := range themes {
-		if theme.id == m.theme {
-			m.theme = themes[(i+1)%len(themes)].id
-			m.showMessage("Theme · " + currentTheme(m.theme).name)
-			return
-		}
-	}
-	m.theme = themes[0].id
 }
 
 func (m *Model) updateSearch(msg tea.KeyMsg) {
@@ -357,7 +348,7 @@ func (m *Model) findSearchMatchFrom(start, direction int) {
 
 func (m *Model) adjustVolume(delta float64) {
 	m.volume = max(0, min(100, m.volume+delta))
-	m.command("set", "volume", m.volume)
+	m.command("set", "volume", strconv.FormatFloat(m.volume, 'f', -1, 64))
 }
 
 func (m *Model) cycleRepeatMode() {
@@ -481,7 +472,9 @@ func (m *Model) syncPlayingPath(path string) {
 			if i != m.playing {
 				m.chooseASCIICover()
 				m.playing = i
-				m.loadMetadata()
+				m.selected = i
+				m.loadMetadata(true)
+				m.ensureVisible()
 			}
 			return
 		}
@@ -517,8 +510,11 @@ func (m *Model) ensureVisible() {
 	}
 	m.listTop = max(0, min(m.listTop, max(0, len(m.files)-rows)))
 }
-func (m *Model) loadMetadata() {
+func (m *Model) loadMetadata(trackChanged bool) {
 	m.title, m.artist, m.album, m.cover = filepath.Base(m.files[m.playing]), "Unknown artist", "", ""
+	if trackChanged {
+		m.theme = randomTheme(m.theme.id)
+	}
 	f, err := os.Open(m.files[m.playing])
 	if err != nil {
 		return
@@ -537,6 +533,9 @@ func (m *Model) loadMetadata() {
 	m.album = meta.Album()
 	if picture := meta.Picture(); picture != nil && len(picture.Data) > 0 {
 		m.cover = sixelImage(picture.Data)
+		if theme, ok := themeFromCover(picture.Data); ok {
+			m.theme = theme
+		}
 	}
 }
 
@@ -596,7 +595,7 @@ func (m *Model) View() string {
 }
 
 func (m *Model) renderView() string {
-	styles := currentTheme(m.theme).styles()
+	styles := m.theme.styles()
 	accent, muted, bright := styles.accent, styles.muted, styles.bright
 	selectedStyle, errorStyle := styles.selected, styles.error
 	screenWidth, h := m.dimensions()
@@ -687,7 +686,7 @@ func (m *Model) renderView() string {
 		helpTitle = "SEARCH"
 	}
 	rows = append(rows, boxBottom(), boxTop(helpTitle))
-	notice := muted.Render("j/k select · Enter play · c current · s sort · r repeat · R refresh · t theme")
+	notice := muted.Render("j/k select · Enter play · c current · s sort · r repeat · R refresh")
 	if m.hasError() {
 		notice = errorStyle.Render(truncate(m.lastError, contentWidth))
 	} else if m.message != "" && time.Now().Before(m.messageUntil) {
