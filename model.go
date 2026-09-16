@@ -648,7 +648,12 @@ func (m *Model) renderView() string {
 			} else {
 				left += "   " + accent.Render(placeholder[i])
 			}
-			rows = append(rows, left+fmt.Sprintf("\x1b[%dG", leftOffset+20)+ansi.Truncate(details[i], rightWidth, "…")+fmt.Sprintf("\x1b[%dG", leftOffset+w-1)+muted.Render("│"))
+			detail := ansi.Truncate(details[i], rightWidth, "…")
+			// Cursor positioning does not erase cells skipped on the way to the
+			// right border. Pad the detail field so a shorter title (or any other
+			// changing value) clears text left behind by the previous frame.
+			detail += strings.Repeat(" ", max(0, rightWidth-ansi.StringWidth(detail)))
+			rows = append(rows, left+fmt.Sprintf("\x1b[%dG", leftOffset+20)+detail+fmt.Sprintf("\x1b[%dG", leftOffset+w-1)+muted.Render("│"))
 		}
 	} else {
 		for _, detail := range details {

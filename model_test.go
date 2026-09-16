@@ -19,3 +19,26 @@ func TestViewFitsHeight(t *testing.T) {
 		}
 	}
 }
+
+func TestCoverLayoutPadsTitleRow(t *testing.T) {
+	m := &Model{
+		width:      coverMinWidth,
+		height:     coverMinHeight,
+		focused:    true,
+		playing:    -1,
+		title:      "Short",
+		artist:     "Artist",
+		asciiCover: -1,
+	}
+
+	lines := strings.Split(ansi.Strip(m.View()), "\n")
+	titleLine := lines[2]
+	titleEnd := strings.Index(titleLine, "Short") + len("Short")
+	border := strings.LastIndex(titleLine, "│")
+	if titleEnd < len("Short") || border < 0 {
+		t.Fatalf("title row was not rendered as expected: %q", titleLine)
+	}
+	if gap := titleLine[titleEnd:border]; strings.TrimSpace(gap) != "" || len(gap) < 2 {
+		t.Errorf("title row is not padded through its detail field: %q", titleLine)
+	}
+}
